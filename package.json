@@ -12,7 +12,8 @@
     "@types/express": "^4.17.11",
     "@types/node": "^14.14.32",
     "@types/web-push": "^3.3.0",
-    "env-cmd": "^10.1.0"
+    "env-cmd": "^10.1.0",
+    "ts-node": "^9.1.1"
   },
   "scripts": {
     "start": "env-cmd --silent ts-node index.ts"
