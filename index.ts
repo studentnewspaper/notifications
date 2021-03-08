@@ -31,16 +31,18 @@ const hasuraClient = new GraphQLClient(
   { headers: { "x-hasura-admin-secret": process.env.HASURA_SECRET } }
 );
 
-async function doesLiveMeetCriteria(
-  id: string
-): Promise<
-  [
-    meetsConditions: boolean,
-    eventSlug: string,
-    eventTitle: string,
-    majorText: string
-  ]
-> {
+type LiveLookupResult =
+  | {
+      meetsConditions: false;
+    }
+  | {
+      meetsConditions: true;
+      eventSlug: string;
+      eventTitle: string;
+      majorText: string;
+    };
+
+async function lookupLive(id: string): Promise<LiveLookupResult> {
   const query = gql`
     query getUpdate($id: ID!) {
       items {
@@ -61,17 +63,21 @@ async function doesLiveMeetCriteria(
     response.items.live_updates == null ||
     response.items.live_updates.length == 0
   )
-    throw new Error(`Did not find live update ${id}`);
+    return { meetsConditions: false };
 
   const update = response.items.live_updates[0];
-  return [
+
+  const accepted =
     update.major_text != null &&
-      update.major_text.trim().length > 0 &&
-      update.status == "published",
-    update.event.slug,
-    update.event.title,
-    update.major_text,
-  ];
+    update.major_text.trim().length > 0 &&
+    update.status == "published";
+  if (!accepted) return { meetsConditions: false };
+  return {
+    meetsConditions: true,
+    eventSlug: update.event.slug,
+    eventTitle: update.event.title,
+    majorText: update.major_text,
+  };
 }
 
 async function hasNotificationBeenSent(id: string) {
@@ -235,17 +241,22 @@ server.post<{ secret: string }>("/webhook/live/:secret", async (req, res) => {
   }
   res.sendStatus(200);
 
-  const updateId = req.body.item;
-  const [
-    meetsConditions,
-    eventSlug,
-    eventTitle,
-    majorText,
-  ] = await doesLiveMeetCriteria(updateId);
+  let updateId = null;
+  if (typeof req.body.item == "string") {
+    updateId = req.body.item;
+  } else {
+    // We won't support multi-insert
+    updateId = req.body.item[0];
+  }
+
+  const lookupResult = await lookupLive(updateId);
+  if (!lookupResult.meetsConditions) return;
   const isSent = await hasNotificationBeenSent(updateId);
-  if (!(meetsConditions && !isSent)) return;
+  if (isSent) return;
 
   await markNotificationHandled(updateId);
+
+  const { majorText, eventSlug, eventTitle } = lookupResult;
 
   let count = 0;
   // For live updates, the channel name is the slug
