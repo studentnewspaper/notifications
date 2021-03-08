@@ -2,6 +2,8 @@ if (process.env.VAPID_PUBLIC == null || process.env.VAPID_PRIVATE == null)
   throw new Error(`Missing VAPID environment variables`);
 if (process.env.HASURA_SECRET == null)
   throw new Error(`Missing GraphQL authentication`);
+if (process.env.WEBHOOK_SECRET == null)
+  throw new Error("Webhook secret needed");
 
 import express from "express";
 import { gql, GraphQLClient } from "graphql-request";
@@ -226,7 +228,11 @@ async function deleteSubscription(channel: string, endpoint: string) {
   return true;
 }
 
-server.post("/webhook/live", async (req, res) => {
+server.post<{ secret: string }>("/webhook/live/:secret", async (req, res) => {
+  if (req.params.secret != process.env.WEBHOOK_SECRET) {
+    res.sendStatus(401);
+    return;
+  }
   res.sendStatus(200);
 
   const updateId = req.body.item;
