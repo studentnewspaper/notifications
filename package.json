@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.10",
-    "@types/express": "^4.17.11",
+    "@types/express": "^4.17.12",
     "@types/node": "^14.14.32",
     "@types/web-push": "^3.3.0",
     "env-cmd": "^10.1.0",
